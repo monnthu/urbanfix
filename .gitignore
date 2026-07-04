@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+bin/
+obj/
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.user
+*.suo
+
+# IDE
+.vs/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Supabase
+.supabase/
+
+# MAUI / .NET
+*.apk
+*.aab
+*.ipa
+
+# Vercel
+.vercel
+
+# Test / coverage
+coverage/
