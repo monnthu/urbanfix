@@ -53,8 +53,9 @@ Base: `/api`
 |--------|------|------|-------------|
 | POST | `/api/reports` | civilian | Create report, route to institution, trigger AI analysis |
 | POST | `/api/reports/[id]/support` | civilian | Add support/verify |
-| POST | `/api/ai/analyze-image` | civilian | Gemini category + priority (also called on report create) |
+| POST | `/api/ai/analyze-image` | authenticated | Gemini category + priority from image URL |
 | POST | `/api/ai/institution-chat` | institution | Scoped Q&A over assigned reports |
+| PATCH | `/api/reports/[id]/status` | institution | Update status of assigned report |
 
 ## Mobile notes
 
