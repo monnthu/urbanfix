@@ -1,4 +1,5 @@
 import { InstitutionDashboard } from "@/components/institution/InstitutionDashboard";
+import { getInstitutionContext } from "@/lib/auth/require-institution";
 import { fetchAssignedReports } from "@/lib/reports/queries";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
@@ -12,64 +13,55 @@ export default async function InstitutionDashboardPage() {
   if (!user) {
     return (
       <main>
-        <h1>Institution dashboard</h1>
+        <h1>Panel institucional</h1>
         <p className="muted" style={{ marginTop: "0.5rem" }}>
-          Sign in with an approved institution account to view assigned reports
-          and use the AI assistant.
+          Inicia sesión con una cuenta institucional aprobada para ver reportes
+          asignados y usar el asistente de IA.
         </p>
         <p style={{ marginTop: "1rem" }}>
-          <Link href="/">← Home</Link>
+          <Link href="/">← Inicio</Link>
         </p>
       </main>
     );
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, institution_id, display_name")
-    .eq("id", user.id)
-    .single();
+  const context = await getInstitutionContext(supabase, user.id);
 
-  if (!profile || profile.role !== "institution" || !profile.institution_id) {
+  if (!context) {
     return (
       <main>
-        <h1>Institution dashboard</h1>
+        <h1>Panel institucional</h1>
         <p className="muted" style={{ marginTop: "0.5rem" }}>
-          This area is for verified institution users only. Apply for access and
-          wait for admin approval.
+          Esta área es solo para instituciones verificadas. Solicita acceso y
+          espera la aprobación del administrador.
         </p>
         <p style={{ marginTop: "1rem" }}>
-          <Link href="/institution/apply">Apply for institution access</Link>
+          <Link href="/institution/apply">Solicitar acceso institucional</Link>
           {" · "}
-          <Link href="/">Home</Link>
+          <Link href="/">Inicio</Link>
         </p>
       </main>
     );
   }
-
-  const { data: institution } = await supabase
-    .from("institutions")
-    .select("name")
-    .eq("id", profile.institution_id)
-    .single();
 
   let reports: Awaited<ReturnType<typeof fetchAssignedReports>> = [];
 
   try {
-    reports = await fetchAssignedReports(supabase, profile.institution_id);
+    reports = await fetchAssignedReports(supabase, context.institution.id);
   } catch {
     reports = [];
   }
 
   return (
     <main>
-      <h1>Institution dashboard</h1>
+      <h1>Panel institucional</h1>
       <p className="muted" style={{ marginTop: "0.5rem" }}>
-        {institution?.name ?? "Your institution"} · {reports.length} assigned
-        report{reports.length === 1 ? "" : "s"}
+        {context.institution.name} · {reports.length} reporte
+        {reports.length === 1 ? "" : "s"} asignado
+        {reports.length === 1 ? "" : "s"}
       </p>
       <p style={{ marginTop: "1rem" }}>
-        <Link href="/">← Home</Link>
+        <Link href="/">← Inicio</Link>
       </p>
 
       <div style={{ marginTop: "1.5rem" }}>

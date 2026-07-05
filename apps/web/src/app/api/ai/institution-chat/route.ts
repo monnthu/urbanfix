@@ -20,31 +20,24 @@ export async function POST(request: Request) {
   try {
     body = (await request.json()) as ChatBody;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
   }
 
   if (!body.question?.trim()) {
-    return NextResponse.json({ error: "question is required" }, { status: 400 });
+    return NextResponse.json({ error: "question es obligatorio" }, { status: 400 });
   }
 
   try {
     const assignedReports = await fetchAssignedReports(
       auth.supabase,
-      auth.profile.institution_id!
+      auth.institution.id
     );
 
     const question = body.reportId
-      ? `${body.question.trim()} (focus on report id ${body.reportId})`
+      ? `${body.question.trim()} (enfócate en el reporte id ${body.reportId})`
       : body.question.trim();
 
     const result = await answerInstitutionQuestion(question, assignedReports);
-
-    await auth.supabase.from("ai_interactions").insert({
-      institution_user_id: auth.user.id,
-      question: body.question.trim(),
-      answer: result.answer,
-      referenced_report_ids: result.referencedReportIds,
-    });
 
     return NextResponse.json(result);
   } catch (error) {

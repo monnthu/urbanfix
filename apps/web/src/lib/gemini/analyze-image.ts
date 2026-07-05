@@ -1,53 +1,56 @@
 import {
-  PRIORITY_LEVELS,
-  REPORT_CATEGORIES,
-  type PriorityLevel,
-  type ReportCategory,
+  ReportCategory,
+  ReportPriority,
+  SLUG_TO_CATEGORY,
+  SLUG_TO_PRIORITY,
 } from "@/lib/constants";
 import { generateContent } from "@/lib/gemini/client";
 import type { ImageAnalysisResult } from "@/lib/types";
 
-const ANALYSIS_PROMPT = `You analyze photos of urban infrastructure problems for a civic reporting platform.
+const CATEGORY_SLUGS = Object.keys(SLUG_TO_CATEGORY).filter(
+  (slug) => !["inundacion", "inundación", "bache", "alumbrado", "basura", "otro", "baja", "media", "alta", "critica", "crítica"].includes(slug)
+);
 
-Return ONLY valid JSON with this exact shape:
+const ANALYSIS_PROMPT = `Analiza fotos de problemas urbanos para una plataforma cívica.
+
+Devuelve SOLO JSON válido con esta forma:
 {
-  "category": "pothole|streetlight|garbage|water_leak|flooding|other",
+  "category": "flooding|pothole|streetlight|garbage|graffiti|other",
   "priority": "low|medium|high|critical",
   "confidence": 0.0,
-  "reason": "short explanation"
+  "reason": "explicación breve en español"
 }
 
-Rules:
-- category must be one of: ${REPORT_CATEGORIES.join(", ")}
-- priority must be one of: ${PRIORITY_LEVELS.join(", ")}
-- confidence is a number from 0 to 1
-- safety hazards (flooding, major leaks, dangerous road damage) should be high or critical priority`;
+Reglas:
+- category debe ser una de: ${CATEGORY_SLUGS.join(", ")}
+- priority debe ser una de: low, medium, high, critical
+- confidence es un número entre 0 y 1
+- riesgos de seguridad deben ser high o critical`;
 
 function parseAnalysis(raw: string): ImageAnalysisResult {
-  const parsed = JSON.parse(raw) as Partial<ImageAnalysisResult>;
+  const parsed = JSON.parse(raw) as {
+    category?: string;
+    priority?: string;
+    confidence?: number;
+    reason?: string;
+  };
 
-  if (
-    !parsed.category ||
-    !REPORT_CATEGORIES.includes(parsed.category as ReportCategory)
-  ) {
-    throw new Error("Invalid category from AI");
-  }
+  const categorySlug = parsed.category?.toLowerCase().trim() ?? "other";
+  const prioritySlug = parsed.priority?.toLowerCase().trim() ?? "medium";
 
-  if (
-    !parsed.priority ||
-    !PRIORITY_LEVELS.includes(parsed.priority as PriorityLevel)
-  ) {
-    throw new Error("Invalid priority from AI");
-  }
+  const category = SLUG_TO_CATEGORY[categorySlug] ?? ReportCategory.Other;
+  const priority = SLUG_TO_PRIORITY[prioritySlug] ?? ReportPriority.Medium;
 
   return {
-    category: parsed.category as ReportCategory,
-    priority: parsed.priority as PriorityLevel,
+    category,
+    categorySlug,
+    priority,
+    prioritySlug,
     confidence:
       typeof parsed.confidence === "number"
         ? Math.min(1, Math.max(0, parsed.confidence))
         : 0.5,
-    reason: parsed.reason?.slice(0, 280) || "AI analysis completed.",
+    reason: parsed.reason?.slice(0, 280) || "Análisis de IA completado.",
   };
 }
 
@@ -58,7 +61,7 @@ export async function analyzeReportImage(
   const imageResponse = await fetch(imageUrl);
 
   if (!imageResponse.ok) {
-    throw new Error("Could not fetch image for analysis");
+    throw new Error("No se pudo obtener la imagen para análisis");
   }
 
   const contentType =
@@ -67,7 +70,7 @@ export async function analyzeReportImage(
   const base64 = buffer.toString("base64");
 
   const prompt = description
-    ? `${ANALYSIS_PROMPT}\n\nReporter description: ${description}`
+    ? `${ANALYSIS_PROMPT}\n\nDescripción del reporte: ${description}`
     : ANALYSIS_PROMPT;
 
   const raw = await generateContent({

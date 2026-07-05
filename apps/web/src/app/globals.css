@@ -152,19 +152,32 @@ button:disabled {
   background: #e2e8f0;
 }
 
+.badge-status-0,
 .badge-open {
   background: #dbeafe;
   color: #1d4ed8;
 }
 
+.badge-status-1 {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.badge-status-2,
 .badge-in_progress {
   background: #fef3c7;
   color: #b45309;
 }
 
+.badge-status-3,
 .badge-resolved {
   background: #dcfce7;
   color: #15803d;
+}
+
+.badge-status-4 {
+  background: #f1f5f9;
+  color: #475569;
 }
 
 .chat-form {

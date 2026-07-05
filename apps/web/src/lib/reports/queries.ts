@@ -1,4 +1,4 @@
-import type { ReportStatus } from "@/lib/constants";
+import { ReportStatus, isReportStatus } from "@/lib/constants";
 import type { Report } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -10,10 +10,10 @@ export async function fetchAssignedReports(
   let query = supabase
     .from("reports")
     .select("*")
-    .eq("assigned_institution_id", institutionId)
+    .eq("institution_id", institutionId)
     .order("created_at", { ascending: false });
 
-  if (status && status !== "all") {
+  if (status !== undefined && status !== "all") {
     query = query.eq("status", status);
   }
 
@@ -34,15 +34,22 @@ export async function updateReportStatus(
 ): Promise<Report> {
   const { data, error } = await supabase
     .from("reports")
-    .update({ status })
+    .update({ status, updated_at: new Date().toISOString() })
     .eq("id", reportId)
-    .eq("assigned_institution_id", institutionId)
+    .eq("institution_id", institutionId)
     .select("*")
     .single();
 
   if (error || !data) {
-    throw new Error(error?.message || "Report not found or not assigned to you");
+    throw new Error(error?.message || "Reporte no encontrado o no asignado a tu institución");
   }
 
   return data as Report;
+}
+
+export function parseReportStatus(value: unknown): ReportStatus | null {
+  if (typeof value === "number" && isReportStatus(value)) {
+    return value;
+  }
+  return null;
 }

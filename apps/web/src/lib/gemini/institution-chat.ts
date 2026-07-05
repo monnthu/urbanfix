@@ -1,10 +1,18 @@
-import { REPORT_CATEGORIES, type ReportStatus } from "@/lib/constants";
+import {
+  ReportCategory,
+  ReportStatus,
+  SLUG_TO_CATEGORY,
+  SLUG_TO_STATUS,
+  categoryLabel,
+  priorityLabel,
+  statusLabel,
+} from "@/lib/constants";
 import { generateContent } from "@/lib/gemini/client";
 import type { InstitutionChatResponse, Report } from "@/lib/types";
 
 export type ReportFilters = {
   status?: ReportStatus;
-  category?: string;
+  category?: ReportCategory;
   zone?: string;
   sinceDays?: number;
   reportId?: string;
@@ -14,25 +22,28 @@ function extractFilters(question: string): ReportFilters {
   const lower = question.toLowerCase();
   const filters: ReportFilters = {};
 
-  if (/\bopen\b/.test(lower)) filters.status = "open";
-  if (/\bin progress\b|\bin_progress\b/.test(lower)) filters.status = "in_progress";
-  if (/\bresolved\b/.test(lower)) filters.status = "resolved";
+  for (const [slug, status] of Object.entries(SLUG_TO_STATUS)) {
+    if (lower.includes(slug)) {
+      filters.status = status;
+      break;
+    }
+  }
 
-  for (const category of REPORT_CATEGORIES) {
-    if (lower.includes(category.replace("_", " ")) || lower.includes(category)) {
+  for (const [slug, category] of Object.entries(SLUG_TO_CATEGORY)) {
+    if (lower.includes(slug)) {
       filters.category = category;
       break;
     }
   }
 
-  const zoneMatch = lower.match(/zone[\s_-]?(\d+)/);
+  const zoneMatch = lower.match(/zone[\s_-]?(\d+)|zona[\s_-]?(\d+)/);
   if (zoneMatch) {
-    filters.zone = `zone_${zoneMatch[1]}`;
+    filters.zone = `zone_${zoneMatch[1] ?? zoneMatch[2]}`;
   }
 
-  if (/last week|past week|7 days/.test(lower)) {
+  if (/last week|past week|7 days|última semana|ultima semana/.test(lower)) {
     filters.sinceDays = 7;
-  } else if (/last month|past month|30 days/.test(lower)) {
+  } else if (/last month|past month|30 days|último mes|ultimo mes/.test(lower)) {
     filters.sinceDays = 30;
   }
 
@@ -56,22 +67,12 @@ export function filterAssignedReports(
     return result.filter((report) => report.id === filters.reportId);
   }
 
-  if (filters.status) {
+  if (filters.status !== undefined) {
     result = result.filter((report) => report.status === filters.status);
   }
 
-  if (filters.category) {
-    result = result.filter(
-      (report) =>
-        report.category === filters.category ||
-        report.ai_category === filters.category
-    );
-  }
-
-  if (filters.zone) {
-    result = result.filter((report) =>
-      (report.address_text || "").toLowerCase().includes(filters.zone!)
-    );
+  if (filters.category !== undefined) {
+    result = result.filter((report) => report.category === filters.category);
   }
 
   if (filters.sinceDays) {
@@ -88,14 +89,14 @@ export function filterAssignedReports(
 
 function summarizeReports(reports: Report[]): string {
   if (reports.length === 0) {
-    return "No matching reports.";
+    return "No hay reportes coincidentes.";
   }
 
   return reports
     .slice(0, 20)
     .map(
       (report) =>
-        `- id=${report.id}; title=${report.title}; category=${report.category}; ai_category=${report.ai_category ?? "n/a"}; priority=${report.priority}; ai_priority=${report.ai_priority ?? "n/a"}; status=${report.status}; address=${report.address_text ?? "n/a"}; created_at=${report.created_at}; description=${report.description.slice(0, 180)}`
+        `- id=${report.id}; title=${report.title}; category=${categoryLabel(report.category)}; priority=${priorityLabel(report.priority)}; status=${statusLabel(report.status)}; ai_category=${report.ai_category ?? "n/a"}; ai_priority=${report.ai_priority ?? "n/a"}; created_at=${report.created_at}; description=${report.description.slice(0, 180)}`
     )
     .join("\n");
 }
@@ -108,16 +109,16 @@ export async function answerInstitutionQuestion(
   const matched = filterAssignedReports(assignedReports, filters);
 
   const context = summarizeReports(matched);
-  const prompt = `You are an assistant for a verified government institution reviewing civic reports.
+  const prompt = `Eres un asistente para una institución gubernamental verificada que revisa reportes cívicos.
 
-Answer ONLY using the report data below. If the answer is not in the data, say you do not have enough assigned report data.
+Responde SOLO usando los datos de reportes asignados abajo. Si no hay datos suficientes, dilo claramente.
 
-When referencing reports, mention their ids explicitly.
+Menciona ids de reportes cuando corresponda.
 
-User question:
+Pregunta del usuario:
 ${question}
 
-Assigned report data (${matched.length} matches):
+Reportes asignados (${matched.length} coincidencias):
 ${context}`;
 
   const answer = await generateContent({ text: prompt });

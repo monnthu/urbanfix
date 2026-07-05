@@ -1,10 +1,10 @@
 import { requireInstitutionUser } from "@/lib/auth/require-institution";
-import { REPORT_STATUSES, type ReportStatus } from "@/lib/constants";
-import { updateReportStatus } from "@/lib/reports/queries";
+import { ReportStatus, isReportStatus } from "@/lib/constants";
+import { parseReportStatus, updateReportStatus } from "@/lib/reports/queries";
 import { NextResponse } from "next/server";
 
 type StatusBody = {
-  status: ReportStatus;
+  status: number;
 };
 
 export async function PATCH(
@@ -22,25 +22,26 @@ export async function PATCH(
   try {
     body = (await request.json()) as StatusBody;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
   }
 
-  if (!REPORT_STATUSES.includes(body.status)) {
-    return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+  const status = parseReportStatus(body.status);
+  if (status === null || !isReportStatus(status)) {
+    return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
   }
 
   try {
     const report = await updateReportStatus(
       auth.supabase,
       id,
-      auth.profile.institution_id!,
-      body.status
+      auth.institution.id,
+      status
     );
 
     return NextResponse.json({ report });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Could not update report";
+      error instanceof Error ? error.message : "No se pudo actualizar el reporte";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

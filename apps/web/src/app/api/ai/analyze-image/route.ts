@@ -21,11 +21,11 @@ export async function POST(request: Request) {
   try {
     body = (await request.json()) as AnalyzeImageBody;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
   }
 
   if (!body.imageUrl) {
-    return NextResponse.json({ error: "imageUrl is required" }, { status: 400 });
+    return NextResponse.json({ error: "imageUrl es obligatorio" }, { status: 400 });
   }
 
   try {
@@ -37,13 +37,15 @@ export async function POST(request: Request) {
         await admin
           .from("reports")
           .update({
-            ai_category: analysis.category,
-            ai_priority: analysis.priority,
+            ai_category: analysis.categorySlug,
+            ai_priority: analysis.prioritySlug,
+            ai_confidence: analysis.confidence,
+            updated_at: new Date().toISOString(),
           })
           .eq("id", body.reportId)
           .eq("civilian_user_id", auth.user.id);
       } catch {
-        // Non-blocking if admin credentials are not configured yet.
+        // No bloqueante si falta service_role en el entorno.
       }
     }
 

@@ -1,14 +1,22 @@
 "use client";
 
 import {
-  CATEGORY_LABELS,
-  PRIORITY_LABELS,
-  REPORT_STATUSES,
+  ReportStatus,
   STATUS_LABELS,
-  type ReportStatus,
+  categoryLabel,
+  priorityLabel,
+  statusLabel,
 } from "@/lib/constants";
 import type { Report } from "@/lib/types";
 import { useMemo, useState } from "react";
+
+const STATUS_OPTIONS = [
+  ReportStatus.Open,
+  ReportStatus.Assigned,
+  ReportStatus.InProgress,
+  ReportStatus.Resolved,
+  ReportStatus.Unassigned,
+] as const;
 
 type Props = {
   initialReports: Report[];
@@ -45,7 +53,7 @@ export function InstitutionDashboard({ initialReports }: Props) {
       };
 
       if (!response.ok) {
-        throw new Error(payload.error || "Could not update status");
+        throw new Error(payload.error || "No se pudo actualizar el estado");
       }
 
       if (payload.report) {
@@ -56,7 +64,7 @@ export function InstitutionDashboard({ initialReports }: Props) {
         );
       }
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Update failed");
+      alert(error instanceof Error ? error.message : "Error al actualizar");
     } finally {
       setUpdatingId(null);
     }
@@ -87,19 +95,19 @@ export function InstitutionDashboard({ initialReports }: Props) {
       if (!response.ok) {
         if (payload.code === "quota_exceeded") {
           throw new Error(
-            "AI quota exceeded. Try again later or check your Gemini API limits."
+            "Cuota de IA agotada. Intenta más tarde o revisa los límites de Gemini."
           );
         }
         if (payload.code === "missing_key") {
-          throw new Error("AI is not configured yet. Add GEMINI_API_KEY to .env.local.");
+          throw new Error("IA no configurada. Agrega GEMINI_API_KEY al entorno.");
         }
-        throw new Error(payload.error || "AI request failed");
+        throw new Error(payload.error || "Falló la consulta a la IA");
       }
 
-      setChatAnswer(payload.answer ?? "No answer returned.");
+      setChatAnswer(payload.answer ?? "Sin respuesta.");
     } catch (error) {
       setChatError(
-        error instanceof Error ? error.message : "Could not reach AI assistant"
+        error instanceof Error ? error.message : "No se pudo contactar al asistente"
       );
     } finally {
       setChatLoading(false);
@@ -110,17 +118,20 @@ export function InstitutionDashboard({ initialReports }: Props) {
     <div className="stack">
       <section className="card">
         <div className="section-header">
-          <h2>Assigned reports</h2>
+          <h2>Reportes asignados</h2>
           <label className="filter-label">
-            Status
+            Estado
             <select
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(event.target.value as ReportStatus | "all")
-              }
+              value={statusFilter === "all" ? "all" : String(statusFilter)}
+              onChange={(event) => {
+                const value = event.target.value;
+                setStatusFilter(
+                  value === "all" ? "all" : (Number(value) as ReportStatus)
+                );
+              }}
             >
-              <option value="all">All</option>
-              {REPORT_STATUSES.map((status) => (
+              <option value="all">Todos</option>
+              {STATUS_OPTIONS.map((status) => (
                 <option key={status} value={status}>
                   {STATUS_LABELS[status]}
                 </option>
@@ -130,7 +141,7 @@ export function InstitutionDashboard({ initialReports }: Props) {
         </div>
 
         {filteredReports.length === 0 ? (
-          <p className="muted">No assigned reports for this filter.</p>
+          <p className="muted">No hay reportes asignados con este filtro.</p>
         ) : (
           <ul className="report-list">
             {filteredReports.map((report) => (
@@ -140,38 +151,24 @@ export function InstitutionDashboard({ initialReports }: Props) {
                     <strong>{report.title}</strong>
                     <p className="muted report-id">{report.id}</p>
                   </div>
-                  <span className={`badge badge-${report.status}`}>
-                    {STATUS_LABELS[report.status as ReportStatus] ??
-                      report.status}
+                  <span className={`badge badge-status-${report.status}`}>
+                    {statusLabel(report.status)}
                   </span>
                 </div>
 
                 <p>{report.description}</p>
 
                 <div className="meta-row">
-                  <span>
-                    Category:{" "}
-                    {CATEGORY_LABELS[
-                      report.category as keyof typeof CATEGORY_LABELS
-                    ] ?? report.category}
-                  </span>
-                  {report.ai_category && (
-                    <span>AI: {report.ai_category}</span>
-                  )}
-                  <span>
-                    Priority:{" "}
-                    {PRIORITY_LABELS[
-                      report.priority as keyof typeof PRIORITY_LABELS
-                    ] ?? report.priority}
-                  </span>
+                  <span>Categoría: {categoryLabel(report.category)}</span>
+                  {report.ai_category && <span>IA: {report.ai_category}</span>}
+                  <span>Prioridad: {priorityLabel(report.priority)}</span>
                   {report.ai_priority && (
-                    <span>AI priority: {report.ai_priority}</span>
+                    <span>Prioridad IA: {report.ai_priority}</span>
+                  )}
+                  {report.ai_confidence != null && (
+                    <span>Confianza IA: {report.ai_confidence}</span>
                   )}
                 </div>
-
-                {report.address_text && (
-                  <p className="muted">{report.address_text}</p>
-                )}
 
                 <div className="actions-row">
                   <button
@@ -179,22 +176,19 @@ export function InstitutionDashboard({ initialReports }: Props) {
                     className="btn-secondary"
                     onClick={() => setSelectedReportId(report.id)}
                   >
-                    Ask AI about this case
+                    Preguntar a la IA sobre este caso
                   </button>
 
                   <label className="filter-label">
-                    Update status
+                    Actualizar estado
                     <select
                       value={report.status}
                       disabled={updatingId === report.id}
                       onChange={(event) =>
-                        updateStatus(
-                          report.id,
-                          event.target.value as ReportStatus
-                        )
+                        updateStatus(report.id, Number(event.target.value) as ReportStatus)
                       }
                     >
-                      {REPORT_STATUSES.map((status) => (
+                      {STATUS_OPTIONS.map((status) => (
                         <option key={status} value={status}>
                           {STATUS_LABELS[status]}
                         </option>
@@ -209,21 +203,21 @@ export function InstitutionDashboard({ initialReports }: Props) {
       </section>
 
       <section className="card">
-        <h2>AI assistant</h2>
+        <h2>Asistente de IA</h2>
         <p className="muted">
-          Ask about assigned reports, e.g. &quot;Show open flooding reports in
-          Zone 3 from the last week.&quot;
+          Pregunta sobre tus reportes asignados, por ejemplo: &quot;Muéstrame
+          reportes abiertos de inundación de la última semana&quot;.
         </p>
 
         {selectedReportId && (
           <p className="selected-case">
-            Focus report: <code>{selectedReportId}</code>{" "}
+            Reporte en foco: <code>{selectedReportId}</code>{" "}
             <button
               type="button"
               className="link-btn"
               onClick={() => setSelectedReportId(null)}
             >
-              Clear
+              Quitar
             </button>
           </p>
         )}
@@ -232,12 +226,12 @@ export function InstitutionDashboard({ initialReports }: Props) {
           <textarea
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
-            placeholder="Ask about your assigned reports..."
+            placeholder="Pregunta sobre tus reportes asignados..."
             rows={4}
             required
           />
           <button type="submit" disabled={chatLoading}>
-            {chatLoading ? "Thinking..." : "Ask assistant"}
+            {chatLoading ? "Pensando..." : "Preguntar al asistente"}
           </button>
         </form>
 
@@ -245,7 +239,7 @@ export function InstitutionDashboard({ initialReports }: Props) {
 
         {chatAnswer && (
           <div className="answer-box">
-            <strong>Assistant</strong>
+            <strong>Asistente</strong>
             <p>{chatAnswer}</p>
           </div>
         )}
